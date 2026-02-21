@@ -144,6 +144,7 @@ export default function ChatPage() {
   const inputBarRef = useRef(null);
   const keyboardInputRef = useRef("");
   const inputRef = useRef(null);
+  const caretPositionRef = useRef(0);
 
   // ✅ SHARE / QR STATE (added)
   const [shareId, setShareId] = useState(null);
@@ -465,66 +466,120 @@ export default function ChatPage() {
           </div>
 
           <Keyboard
-            keyboardRef={(r) => {
-              keyboardRef.current = r;
-              if (r) {
-                r.setInput(input);
-              }
-            }}
-            layoutName={shiftActive ? "shift" : "default"}
-            layout={layout.qwerty}
-            onChange={(text) => {
-              setInput(text);
-              keyboardInputRef.current = text;
+  keyboardRef={(r) => {
+    keyboardRef.current = r;
+  }}
+  layoutName={shiftActive ? "shift" : "default"}
+  layout={layout.qwerty}
+  onKeyPress={(button) => {
+    let currentText = input;
+    let caretPos = caretPositionRef.current;
 
-              if (inputRef.current) {
-                inputRef.current.value = text;
-              }
-            }}
-            onKeyPress={(button) => {
-              if (button === "{shift}") {
-                const newShiftState = !shiftActive;
-                setShiftActive(newShiftState);
-                setTimeout(() => {
-                  if (keyboardRef.current) {
-                    keyboardRef.current.setOptions({
-                      layoutName: newShiftState ? "shift" : "default",
-                    });
-                  }
-                }, 10);
-              } else if (button === "{enter}") {
-                handleSend({ preventDefault: () => {} });
-              } else if (button === "{@}") {
-                setInput((prev) => prev + "@");
-              } else if (button === "{%}") {
-                setInput((prev) => prev + "%");
-              } else if (button === "{?}") {
-                setInput((prev) => prev + "?");
-              } else if (button === "{,}") {
-                setInput((prev) => prev + ",");
-              } else if (button === "{.}") {
-                setInput((prev) => prev + ".");
-              }
-            }}
-            theme="hg-theme-default hg-theme-custom"
-            display={{
-              "{backspace}": "⌫",
-              "{enter}": "↵",
-              "{shift}": shiftActive ? "⇧" : "⇧",
-              "{space}": "Space",
-              "{@}": "@",
-              "{%}": "%",
-              "{?}": "?",
-              "{,}": ",",
-              "{.}": ".",
-            }}
-            preventMouseDownDefault={true}
-            preventMouseUpDefault={true}
-            syncInstanceInputs={true}
-            mergeDisplay={true}
-            newLineOnEnter={false}
-            autoUseTouchEvents={true}
-          />
+    const updateText = (newText, newCaretPos) => {
+      setInput(newText);
+      keyboardInputRef.current = newText;
+      caretPositionRef.current = newCaretPos;
+
+      requestAnimationFrame(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.setSelectionRange(newCaretPos, newCaretPos);
+        }
+      });
+    };
+
+    // ===== SHIFT =====
+    if (button === "{shift}" || button === "{lock}") {
+      const newShiftState = !shiftActive;
+      setShiftActive(newShiftState);
+
+      keyboardRef.current?.setOptions({
+        layoutName: newShiftState ? "shift" : "default",
+      });
+      return;
+    }
+
+    // ===== ENTER =====
+    if (button === "{enter}") {
+      handleSend({ preventDefault: () => {} });
+      return;
+    }
+
+    // ===== BACKSPACE =====
+    if (button === "{backspace}") {
+      if (caretPos > 0) {
+        const newText =
+          currentText.slice(0, caretPos - 1) +
+          currentText.slice(caretPos);
+
+        updateText(newText, caretPos - 1);
+      }
+      return;
+    }
+
+    // ===== SPACE =====
+    if (button === "{space}") {
+      const newText =
+        currentText.slice(0, caretPos) +
+        " " +
+        currentText.slice(caretPos);
+
+      updateText(newText, caretPos + 1);
+      return;
+    }
+
+    // ===== SPECIAL TOKENS FROM YOUR LAYOUT =====
+    const specialTokens = {
+      "{@}": "@",
+      "{%}": "%",
+      "{?}": "?",
+      "{,}": ",",
+      "{.}": ".",
+    };
+
+    if (specialTokens[button]) {
+      const char = specialTokens[button];
+
+      const newText =
+        currentText.slice(0, caretPos) +
+        char +
+        currentText.slice(caretPos);
+
+      updateText(newText, caretPos + 1);
+      return;
+    }
+
+    // ===== Ignore unknown control buttons =====
+    if (button.startsWith("{") && button.endsWith("}")) {
+      return;
+    }
+
+    // ===== Normal characters (letters & numbers) =====
+    const newText =
+      currentText.slice(0, caretPos) +
+      button +
+      currentText.slice(caretPos);
+
+    updateText(newText, caretPos + button.length);
+  }}
+  theme="hg-theme-default hg-theme-custom"
+  display={{
+    "{backspace}": "⌫",
+    "{enter}": "↵",
+    "{shift}": "⇧",
+    "{space}": "Space",
+    "{@}": "@",
+    "{%}": "%",
+    "{?}": "?",
+    "{,}": ",",
+    "{.}": ".",
+    "{#}": "#",
+  }}
+  preventMouseDownDefault={true}
+  preventMouseUpDefault={true}
+  newLineOnEnter={false}
+  autoUseTouchEvents={true}
+/>
 
           {/* your existing keyboard styles remain unchanged */}
           <style jsx global>{`
@@ -866,24 +921,28 @@ export default function ChatPage() {
               ref={inputRef}
               value={input}
               onChange={(e) => {
-                const newValue = e.target.value;
-                setInput(newValue);
-                keyboardInputRef.current = newValue;
-                if (showKeyboard && keyboardRef.current) {
-                  keyboardRef.current.setInput(newValue);
-                }
-              }}
-              
-              onClick={(e) => {
-                if (keyboardRef.current) {
-                  keyboardRef.current.setCaretPosition(e.target.selectionStart);
-                }
-              }}
-              onKeyUp={(e) => {
-                if (keyboardRef.current) {
-                  keyboardRef.current.setCaretPosition(e.target.selectionStart);
-                }
-              }}
+                const value = e.target.value;
+                 const caret = e.target.selectionStart;
+                 
+                 setInput(value);
+                 keyboardInputRef.current = value;
+                 caretPositionRef.current = caret;
+                 
+                 if (keyboardRef.current) {
+                  keyboardRef.current.setInput(value);
+                  keyboardRef.current.setCaretPosition(caret);
+              }
+            }}
+            onClick={(e) => {
+              const caret = e.target.selectionStart;
+              caretPositionRef.current = caret;
+              keyboardRef.current?.setCaretPosition(caret);
+            }}
+            onKeyUp={(e) => {
+              const caret = e.target.selectionStart;
+              caretPositionRef.current = caret;
+              keyboardRef.current?.setCaretPosition(caret);
+            }}
               onFocus={() => {
                 setShowKeyboard(true);
                 if (chatContainerRef.current) {
