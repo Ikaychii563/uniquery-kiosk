@@ -130,8 +130,8 @@ export default function ModelsPage() {
           <div className="flex flex-col items-center mb-6">
             <img src="/tupi-logo.png" alt="TUP Logo" className="h-16 w-16 mb-2" />
             <h2 className="text-2xl font-bold">
-              <span className="text-black">TUP AI</span>{" "}
-              <span className="text-[#aa3636]">Chatbot</span>
+              <span className="text-black">Uni</span>{" "}
+              <span className="text-[#aa3636]">Qwery</span>
             </h2>
           </div>
 

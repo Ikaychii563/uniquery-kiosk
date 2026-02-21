@@ -50,7 +50,7 @@ export default function Home() {
         {/* HEADLINE */}
         <h2 className="text-xl md:text-3xl font-bold drop-shadow mb-4">
           From Campus Corners to ECE Queries —{" "}
-          <span className="text-[#aa3636]">UniQuery</span> Knows It All.
+          <span className="text-[#aa3636]">UniQwery</span> Knows It All.
         </h2>
 
         {/* CONTENT ROW */}
@@ -64,7 +64,7 @@ export default function Home() {
               className="h-36 md:h-40 drop-shadow-xl"
             />
             <p className="text-xl font-bold mt-2">
-              TUP AI <span className="text-[#aa3636]">Chatbot</span>
+              Uni<span className="text-[#aa3636]">Qwery</span>
             </p>
           </div>
 
@@ -72,7 +72,7 @@ export default function Home() {
           <div className="bg-white border-2 border-gray-300 rounded-2xl p-5 md:p-6 shadow-xl max-w-md">
             <p className="text-black text-base md:text-lg leading-relaxed">
               Lost on campus or stuck with ECE queries?{" "}
-              <span className="text-[#aa3636] font-bold">UniQuery</span> is here
+              <span className="text-[#aa3636] font-bold">UniQwery</span> is here
               to power up your day with fast, smart, and electrifyingly 
               accurate answers—sparking knowledge and guidance anytime 
               you need it!
