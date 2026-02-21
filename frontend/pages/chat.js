@@ -450,104 +450,130 @@ export default function ChatPage() {
             zIndex: 55,
           }}
         >
+          
           <div className="flex justify-end p-1 bg-gray-100">
-            <button
-              onClick={() => {
-                setShowKeyboard(false);
-                const inputElement = document.querySelector(
-                  'input[placeholder*="Ask"]'
-                );
-                if (inputElement) inputElement.focus();
-              }}
-              className="text-gray-600 hover:text-gray-800 px-2 py-1 rounded text-xs"
-            >
-              Close Keyboard
-            </button>
-          </div>
+  <button
+    type="button"
+    onMouseDown={(e) => {
+      // PREVENT input blur from firing
+      e.preventDefault();
+    }}
+    onClick={(e) => {
+      e.stopPropagation();
 
-          <Keyboard
-  keyboardRef={(r) => {
-    keyboardRef.current = r;
-  }}
-  layoutName={shiftActive ? "shift" : "default"}
-  layout={layout.qwerty}
-  onKeyPress={(button) => {
-    let currentText = input;
-    let caretPos = caretPositionRef.current;
+      // 1️⃣ Clear React state
+      setInput("");
 
-    const updateText = (newText, newCaretPos) => {
-      setInput(newText);
-      keyboardInputRef.current = newText;
-      caretPositionRef.current = newCaretPos;
+      // 2️⃣ Clear refs
+      keyboardInputRef.current = "";
+      caretPositionRef.current = 0;
 
+      // 3️⃣ Clear keyboard internal value
+      if (keyboardRef.current) {
+        keyboardRef.current.setInput("");
+        keyboardRef.current.setCaretPosition(0);
+      }
+
+      // 4️⃣ Restore focus safely
       requestAnimationFrame(() => {
         if (inputRef.current) {
           inputRef.current.focus();
-          inputRef.current.setSelectionRange(newCaretPos, newCaretPos);
+          inputRef.current.setSelectionRange(0, 0);
         }
       });
-    };
+    }}
+    className="text-red-600 hover:text-red-800 font-semibold px-3 py-1 rounded text-xs"
+  >
+    Clear All
+  </button>
+</div>
 
-    // ===== SHIFT =====
-    if (button === "{shift}" || button === "{lock}") {
-      const newShiftState = !shiftActive;
-      setShiftActive(newShiftState);
-
-      keyboardRef.current?.setOptions({
-        layoutName: newShiftState ? "shift" : "default",
-      });
-      return;
-    }
-
-    // ===== ENTER =====
-    if (button === "{enter}") {
-      handleSend({ preventDefault: () => {} });
-      return;
-    }
-
-    // ===== BACKSPACE =====
-    if (button === "{backspace}") {
-      if (caretPos > 0) {
-        const newText =
-          currentText.slice(0, caretPos - 1) +
-          currentText.slice(caretPos);
-
-        updateText(newText, caretPos - 1);
-      }
-      return;
-    }
-
-    // ===== SPACE =====
-    if (button === "{space}") {
-      const newText =
-        currentText.slice(0, caretPos) +
-        " " +
-        currentText.slice(caretPos);
-
-      updateText(newText, caretPos + 1);
-      return;
-    }
-
-    // ===== SPECIAL TOKENS FROM YOUR LAYOUT =====
-    const specialTokens = {
-      "{@}": "@",
-      "{%}": "%",
-      "{?}": "?",
-      "{,}": ",",
-      "{.}": ".",
-    };
-
-    if (specialTokens[button]) {
-      const char = specialTokens[button];
-
-      const newText =
-        currentText.slice(0, caretPos) +
-        char +
-        currentText.slice(caretPos);
-
-      updateText(newText, caretPos + 1);
-      return;
-    }
+          <Keyboard
+          keyboardRef={(r) => {
+            keyboardRef.current = r;
+          }}
+          layoutName={shiftActive ? "shift" : "default"}
+          layout={layout.qwerty}
+          onKeyPress={(button) => {
+            let currentText = input;
+            let caretPos = caretPositionRef.current;
+            
+            const updateText = (newText, newCaretPos) => {
+            setInput(newText);
+            keyboardInputRef.current = newText;
+            caretPositionRef.current = newCaretPos;
+            
+            requestAnimationFrame(() => {
+              if (inputRef.current) {
+                inputRef.current.focus();
+                inputRef.current.setSelectionRange(newCaretPos, newCaretPos)
+              }
+            });
+          };
+          
+          // ===== SHIFT =====
+          // 
+          if (button === "{shift}" || button === "{lock}") {
+            const newShiftState = !shiftActive;
+            setShiftActive(newShiftState);
+            
+            keyboardRef.current?.setOptions({
+              layoutName: newShiftState ? "shift" : "default",
+            });
+            return;
+          }
+          // ===== ENTER =====
+          // 
+          if (button === "{enter}") {
+            handleSend({ preventDefault: () => {} });
+            return;
+          }
+          
+          // ===== BACKSPACE =====
+          // 
+          if (button === "{backspace}") {
+            if (caretPos > 0) {
+              const newText =
+              currentText.slice(0, caretPos - 1) +
+              currentText.slice(caretPos);
+              
+              updateText(newText, caretPos - 1);
+            }
+            return;
+          }
+          
+          // ===== SPACE =====
+          // 
+          if (button === "{space}") {
+            const newText =
+            currentText.slice(0, caretPos) +
+            " " +
+            currentText.slice(caretPos);
+            
+            updateText(newText, caretPos + 1);
+            return;
+          }
+          
+          // ===== SPECIAL TOKENS FROM YOUR LAYOUT =====
+          // 
+          const specialTokens = {
+            "{@}": "@",
+            "{%}": "%",
+            "{?}": "?",
+            "{,}": ",",
+            "{.}": ".",
+          };
+          if (specialTokens[button]) {
+            const char = specialTokens[button];
+            
+            const newText =
+            currentText.slice(0, caretPos) +
+            char +
+            currentText.slice(caretPos);
+            
+            updateText(newText, caretPos + 1);
+            return;
+          }
 
     // ===== Ignore unknown control buttons =====
     if (button.startsWith("{") && button.endsWith("}")) {
@@ -573,7 +599,7 @@ export default function ChatPage() {
     "{?}": "?",
     "{,}": ",",
     "{.}": ".",
-    "{#}": "#",
+    "{#}": "#"
   }}
   preventMouseDownDefault={true}
   preventMouseUpDefault={true}
