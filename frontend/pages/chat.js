@@ -6,10 +6,12 @@ import { auth } from "../firebase/clientApp";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import toast from "react-hot-toast";
 import {
-  getConversation,
-  appendMessage,
-  setConversation,
   getUserProfile,
+  createThread,
+  getRecentThreads,
+  getThreadMessages,
+  appendThreadMessage,
+  keepOnlyLastNThreads,
 } from "../lib/firestoreHelpers";
 
 // IMPORT VIRTUAL KEYBOARD
@@ -135,6 +137,13 @@ export default function ChatPage() {
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
+const [recentThreads, setRecentThreads] = useState([]);
+const [threadId, setThreadId] = useState(null);
+const [thinking, setThinking] = useState(false);
+
+const [guestThreads, setGuestThreads] = useState([]);
+const [guestThreadId, setGuestThreadId] = useState(null);
+
   // VIRTUAL KEYBOARD STATE
   const [showKeyboard, setShowKeyboard] = useState(false);
   const keyboardRef = useRef(null);
@@ -150,6 +159,23 @@ export default function ChatPage() {
   const [shareId, setShareId] = useState(null);
   const [shareOpen, setShareOpen] = useState(false);
 
+
+  const GUEST_KEY = `guest_threads_${modelKey}`;
+  function loadGuestThreads() {
+  try {
+    const raw = localStorage.getItem(GUEST_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+ }
+ function saveGuestThreads(threads) {
+  try {
+    localStorage.setItem(GUEST_KEY, JSON.stringify(threads.slice(0, 3)));
+  } catch {}
+ }
+
+
   /* AUTH */
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -157,7 +183,17 @@ export default function ChatPage() {
         setUser(null);
         setNickname("Guest");
         setRealName("Guest");
-        setMessages([]);
+        
+        const threads = loadGuestThreads();
+        setGuestThreads(threads);
+        
+        if (threads.length > 0) {
+          setGuestThreadId(threads[0].id);
+          setMessages(threads[0].messages || []);
+        } else {
+          setGuestThreadId(null);
+          setMessages([]);
+        }
         setLoading(false);
         return;
       }
@@ -188,8 +224,19 @@ export default function ChatPage() {
             "User";
           setNickname(nick);
 
-          const conv = await getConversation(u.uid, modelKey);
-          setMessages(conv?.messages || []);
+          const recents = await getRecentThreads(u.uid, modelKey, 3);
+          setRecentThreads(recents);
+          
+          if (recents.length > 0) {
+            // show recents in sidebar, but start blank (unsaved)
+            setThreadId(null);
+            setMessages([]);
+          } else {
+            // No saved recents yet; start with a blank unsaved chat
+            setThreadId(null);
+            setMessages([]);
+            setRecentThreads([]);
+          }
         }
       } catch {}
 
@@ -250,97 +297,191 @@ export default function ChatPage() {
 
   /* SEND MESSAGE */
   async function handleSend(e) {
-    e.preventDefault();
-    const trimmed = input.trim();
-    if (!trimmed) return;
+  e.preventDefault();
+  const trimmed = input.trim();
+  if (!trimmed) return;
 
-    const userMsg = { role: "user", content: trimmed };
-    const updatedMessages = [...messages, userMsg];
-    setMessages(updatedMessages);
-    setInput("");
-    setSending(true);
-    setShowKeyboard(false);
-    keyboardInputRef.current = "";
+  const userMsg = { role: "user", content: trimmed };
+  const updatedMessages = [...messages, userMsg];
+  setMessages(updatedMessages);
+  setInput("");
+  setSending(true);
+  setThinking(true);
+  setShowKeyboard(false);
+  keyboardInputRef.current = "";
 
-    toast.loading("Sending...", { id: "send" });
+  toast.loading("Sending...", { id: "send" });
 
-    try {
-      if (user && !isPublicAccess)
-        await appendMessage(user.uid, modelKey, userMsg);
+  let activeThreadId = threadId;
 
-      if (!selectedModel.url) {
-        const errorMsg = { role: "assistant", content: "Model unavailable." };
-        setMessages([...updatedMessages, errorMsg]);
-        if (user && !isPublicAccess)
-          await appendMessage(user.uid, modelKey, errorMsg);
-        toast.dismiss("send");
-        setSending(false);
-        return;
-      }
+if (user && !isPublicAccess && !activeThreadId) {
+  activeThreadId = await createThread(user.uid, modelKey);
+  setThreadId(activeThreadId);
+}
 
-      const requestOptions = {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      };
-
-      const requestFormats = [
-        {
-          inputs: trimmed,
-          parameters: { max_new_tokens: 500, temperature: 0.7 },
-        },
-        { query: trimmed, max_new_tokens: 500, temperature: 0.7 },
-        { input: trimmed, max_length: 500, temperature: 0.7 },
-      ];
-
-      let reply = "";
-      let lastError = null;
-
-      for (let i = 0; i < requestFormats.length; i++) {
-        try {
-          requestOptions.body = JSON.stringify(requestFormats[i]);
-          const res = await fetch(selectedModel.url, requestOptions);
-
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-          const raw = await res.text();
-          reply = formatAIResponse(raw);
-
-          if (reply && reply !== "{}") break;
-        } catch (err) {
-          lastError = err;
-        }
-      }
-
-      if (!reply && lastError) throw lastError;
-      if (!reply) throw new Error("No response");
-
-      reply = reply.trim();
-      const aiMsg = { role: "assistant", content: reply };
-      setMessages([...updatedMessages, aiMsg]);
-
-      if (user && !isPublicAccess)
-        await appendMessage(user.uid, modelKey, aiMsg);
-
-      toast.success("Reply received", { id: "send" });
-    } catch (err) {
-      const errorMsg = {
-        role: "assistant",
-        content: `**Error:** ${err.message}`,
-      };
-      setMessages([...messages, userMsg, errorMsg]);
-      toast.error("Send failed", { id: "send" });
+  try {
+    // Save user message (logged-in thread)
+    if (user && !isPublicAccess && activeThreadId) {
+      await appendThreadMessage(user.uid, modelKey, activeThreadId, userMsg);
     }
 
-    setSending(false);
+    // Model unavailable
+    if (!selectedModel.url) {
+      const errorMsg = { role: "assistant", content: "Model unavailable." };
+      setMessages([...updatedMessages, errorMsg]);
+
+      if (user && !isPublicAccess && activeThreadId) {
+        await appendThreadMessage(user.uid, modelKey, activeThreadId, errorMsg);
+      }
+
+      toast.dismiss("send");
+      setThinking(false);
+      setSending(false);
+      return;
+    }
+
+    const requestOptions = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    };
+
+    const requestFormats = [
+      {
+        inputs: trimmed,
+        parameters: { max_new_tokens: 500, temperature: 0.7 },
+      },
+      { query: trimmed, max_new_tokens: 500, temperature: 0.7 },
+      { input: trimmed, max_length: 500, temperature: 0.7 },
+    ];
+
+    let reply = "";
+    let lastError = null;
+
+    // ✅ GLOBAL 60-second timeout across ALL attempts
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    for (let i = 0; i < requestFormats.length; i++) {
+      try {
+        requestOptions.body = JSON.stringify(requestFormats[i]);
+
+        const res = await fetch(selectedModel.url, {
+          ...requestOptions,
+          signal: controller.signal,
+        });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const raw = await res.text();
+        reply = formatAIResponse(raw);
+
+        if (reply && reply !== "{}") break;
+      } catch (err) {
+        lastError = err;
+        if (err.name === "AbortError") break; // stop immediately on timeout
+      }
+    }
+
+    clearTimeout(timeoutId);
+
+    if (!reply && lastError) throw lastError;
+    if (!reply) throw new Error("No response");
+
+    reply = reply.trim();
+    const aiMsg = { role: "assistant", content: reply };
+
+    const finalMessages = [...updatedMessages, aiMsg];
+    setMessages(finalMessages);
+
+    
+
+    // Logged-in: save assistant reply (DO NOT refresh recents here)
+if (user && !isPublicAccess && activeThreadId) {
+  await appendThreadMessage(user.uid, modelKey, activeThreadId, aiMsg);
+}
+
+
+    toast.success("Reply received", { id: "send" });
+  } catch (err) {
+    const errorMsg = {
+      role: "assistant",
+      content:
+        err.name === "AbortError"
+          ? "⚠️ No response after 1 minute. Please try again."
+          : `**Error:** ${err.message}`,
+    };
+
+    setMessages([...messages, userMsg, errorMsg]);
+    toast.error("Send failed", { id: "send" });
   }
 
+  setThinking(false);
+  setSending(false);
+}
+
   async function handleNewChat() {
-    if (user && !isPublicAccess) await setConversation(user.uid, modelKey, []);
+  if (user && !isPublicAccess) {
+    // ================================
+    // LOGGED-IN MODE
+    // ================================
+
+    // 1️⃣ If there is an active conversation, finalize it FIRST
+    if (messages.length > 0) {
+      let currentId = threadId;
+
+      // If conversation has no thread yet, create one now
+      if (!currentId) {
+        currentId = await createThread(user.uid, modelKey);
+
+        // Save all current messages to Firestore
+        for (const msg of messages) {
+          await appendThreadMessage(user.uid, modelKey, currentId, msg);
+        }
+      }
+    }
+
+    // 2️⃣ Keep only latest 3 threads
+    await keepOnlyLastNThreads(user.uid, modelKey, 3);
+
+    // 3️⃣ Refresh recents (ONLY here)
+    const recents = await getRecentThreads(user.uid, modelKey, 3);
+    setRecentThreads(recents);
+
+    // 4️⃣ Start a NEW blank unsaved chat
+    setThreadId(null);
     setMessages([]);
-    // ✅ reset share state too (added)
-    setShareId(null);
-    setShareOpen(false);
+
+  } else {
+    // ================================
+    // GUEST MODE
+    // ================================
+
+    if (messages.length > 0) {
+      const firstUserMsg = messages.find((m) => m.role === "user");
+
+      const newThread = {
+        id: Date.now().toString(),
+        title: (firstUserMsg?.content || "New Chat").slice(0, 30),
+        messages: messages,
+        updatedAt: Date.now(),
+      };
+
+      const updated = [newThread, ...guestThreads]
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .slice(0, 3);
+
+      setGuestThreads(updated);
+      saveGuestThreads(updated);
+    }
+
+    // Start fresh blank guest chat
+    setGuestThreadId(Date.now().toString());
+    setMessages([]);
   }
+
+  setShareId(null);
+  setShareOpen(false);
+}
 
   function handleSignOut() {
     signOut(auth).then(() => router.push("/login"));
@@ -402,7 +543,9 @@ export default function ChatPage() {
     shareId && typeof window !== "undefined"
       ? `${window.location.origin}/share/${shareId}`
       : "";
-
+  
+  const recentsToShow =user && !isPublicAccess ? recentThreads : guestThreads;
+   
   return (
     <div
       className="relative h-screen w-screen overflow-hidden bg-cover bg-center"
@@ -735,6 +878,29 @@ export default function ChatPage() {
               text-overflow: ellipsis;
               white-space: nowrap;
             }
+            .dot {
+            display: inline-block;
+            width: 6px;
+            text-align: center;
+            animation: dotBounce 1.1s infinite ease-in-out;
+            opacity: 0.35;
+            }
+            .dot:nth-child(2) {
+            animation-delay: 0.12s;
+            }
+            .dot:nth-child(3) {
+            animation-delay: 0.24s;
+            }
+            @keyframes dotBounce {
+            0%, 80%, 100% {
+            transform: translateY(0);
+            opacity: 0.35;
+            }
+            40% {
+            transform: translateY(-4px);
+            opacity: 1;
+            }
+            }
           `}</style>
         </div>
       )}
@@ -774,6 +940,32 @@ export default function ChatPage() {
 
           <p className="text-sm opacity-80 mb-3">Recents</p>
           <div className="h-[1px] bg-white/40 mb-4"></div>
+          
+          <div className="flex flex-col gap-2 overflow-y-auto">
+            {recentsToShow.map((t) => (
+              <button
+              key={t.id}
+              className="text-left text-xs bg-white/10 hover:bg-white/20 px-3 py-2 rounded"
+              onClick={async () => {
+                if (user && !isPublicAccess) {
+          // Logged-in: load from Firestore
+          setThreadId(t.id);
+          const msgs = await getThreadMessages(user.uid, modelKey, t.id);
+          setMessages(msgs.map((m) => ({ role: m.role, content: m.content })));
+        } else {
+          // Guest: load from localStorage memory
+          // 
+          setGuestThreadId(t.id);
+          setMessages(t.messages || []);
+        }
+      }}
+      >
+        {t.title || "Chat"}
+        </button>
+      ))}
+      </div>
+
+
 
           {/* USER INFO */}
           <div className="mt-auto flex items-center gap-3 border-t border-white/30 pt-4">
@@ -817,22 +1009,23 @@ export default function ChatPage() {
           }}
         >
           {/* ✅ Generate QR button inside chat area (added) */}
-          <div className="absolute top-3 right-6 z-40">
-            <button
-              onClick={handleGenerateQR}
-              disabled={messages.length === 0}
-              className={`px-4 py-2 rounded-full shadow font-semibold text-xs ${
-                messages.length === 0
-                  ? "bg-white/50 text-gray-700"
-                  : "bg-white/90 text-black"
-              }`}
-              title={
-                messages.length === 0
-                  ? "Start a conversation first"
-                  : "Generate QR for this conversation"
-              }
-            >
-              Generate QR
+          {/* ✅ Chat Top Bar (QR button) — prevents overlap */}
+          <div className="px-6 pt-3 flex justify-end">
+          <button
+          onClick={handleGenerateQR}
+          disabled={messages.length === 0}
+          className={`px-4 py-2 rounded-full shadow font-semibold text-xs ${
+            messages.length === 0
+            ? "bg-white/50 text-gray-700"
+            : "bg-white/90 text-black"
+          }`}
+          title={
+            messages.length === 0
+            ? "Start a conversation first"
+            : "Generate QR for this conversation"
+          }
+          >
+            Generate QR
             </button>
           </div>
 
@@ -840,7 +1033,8 @@ export default function ChatPage() {
           <div
             className="absolute inset-0 px-6 overflow-y-auto flex flex-col"
             style={{
-              paddingTop: "15px",
+              top: "52px",
+              paddingTop: "6px",
               paddingBottom: showKeyboard
                 ? `${inputBarHeight + keyboardPadding + keyboardHeight}px`
                 : `${inputBarHeight}px`,
@@ -882,6 +1076,15 @@ export default function ChatPage() {
               ))
             )}
 
+            {thinking && (
+              <div className="mb-4 w-full text-left">
+                <div className="inline-block px-4 py-3 rounded-2xl shadow-lg text-sm max-w-[85%] bg-white text-black border border-gray-200">
+                  <span className="dot">.</span>
+                  <span className="dot">.</span>
+                  <span className="dot">.</span>
+                </div>
+              </div>
+            )}
             <div ref={endRef} />
           </div>
 
