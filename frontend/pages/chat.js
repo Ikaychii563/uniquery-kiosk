@@ -12,6 +12,7 @@ import {
   getThreadMessages,
   appendThreadMessage,
   keepOnlyLastNThreads,
+  touchThread,
 } from "../lib/firestoreHelpers";
 
 // IMPORT VIRTUAL KEYBOARD
@@ -187,13 +188,9 @@ const [guestThreadId, setGuestThreadId] = useState(null);
         const threads = loadGuestThreads();
         setGuestThreads(threads);
         
-        if (threads.length > 0) {
-          setGuestThreadId(threads[0].id);
-          setMessages(threads[0].messages || []);
-        } else {
-          setGuestThreadId(null);
-          setMessages([]);
-        }
+        setGuestThreadId(null);
+        setMessages([]);
+        
         setLoading(false);
         return;
       }
@@ -420,13 +417,15 @@ if (user && !isPublicAccess && activeThreadId) {
 }
 
   async function handleNewChat() {
+  const hasRealConversation = messages.some((m) => m.role === "user" && m.content?.trim());
+
   if (user && !isPublicAccess) {
     // ================================
     // LOGGED-IN MODE
     // ================================
 
-    // 1️⃣ If there is an active conversation, finalize it FIRST
-    if (messages.length > 0) {
+    // ✅ Only finalize/store if there's a real convo
+    if (hasRealConversation) {
       let currentId = threadId;
 
       // If conversation has no thread yet, create one now
@@ -438,16 +437,19 @@ if (user && !isPublicAccess && activeThreadId) {
           await appendThreadMessage(user.uid, modelKey, currentId, msg);
         }
       }
+
+      // ✅ IMPORTANT: mark as recent ONLY when real convo exists
+      await touchThread(user.uid, modelKey, currentId);
+
+      // keep only 3 finalized recents
+      await keepOnlyLastNThreads(user.uid, modelKey, 3);
+
+      // refresh sidebar recents
+      const recents = await getRecentThreads(user.uid, modelKey, 3);
+      setRecentThreads(recents);
     }
 
-    // 2️⃣ Keep only latest 3 threads
-    await keepOnlyLastNThreads(user.uid, modelKey, 3);
-
-    // 3️⃣ Refresh recents (ONLY here)
-    const recents = await getRecentThreads(user.uid, modelKey, 3);
-    setRecentThreads(recents);
-
-    // 4️⃣ Start a NEW blank unsaved chat
+    // Start a NEW blank unsaved chat
     setThreadId(null);
     setMessages([]);
 
@@ -456,8 +458,9 @@ if (user && !isPublicAccess && activeThreadId) {
     // GUEST MODE
     // ================================
 
-    if (messages.length > 0) {
-      const firstUserMsg = messages.find((m) => m.role === "user");
+    // ✅ Only save if real convo exists
+    if (hasRealConversation) {
+      const firstUserMsg = messages.find((m) => m.role === "user" && m.content?.trim());
 
       const newThread = {
         id: Date.now().toString(),
@@ -475,7 +478,7 @@ if (user && !isPublicAccess && activeThreadId) {
     }
 
     // Start fresh blank guest chat
-    setGuestThreadId(Date.now().toString());
+    setGuestThreadId(null);
     setMessages([]);
   }
 
