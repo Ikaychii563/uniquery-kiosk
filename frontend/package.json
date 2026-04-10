@@ -8,8 +8,12 @@
     "start": "next start -p 3000"
   },
   "dependencies": {
+    "@pixiv/three-vrm": "^3.5.1",
+    "@pixiv/three-vrm-animation": "^3.5.1",
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.18.0",
     "firebase": "^12.4.0",
-    "firebase-admin": "^13.6.1",
+    "firebase-admin": "^10.3.0",
     "next": "^15.5.12",
     "qrcode.react": "^4.2.0",
     "react": "18.2.0",
@@ -18,7 +22,8 @@
     "react-markdown": "^10.1.0",
     "react-simple-keyboard": "^3.8.139",
     "remark-gfm": "^4.0.1",
-    "simple-keyboard": "^3.8.92"
+    "simple-keyboard": "^3.8.92",
+    "three": "^0.183.2"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.14",

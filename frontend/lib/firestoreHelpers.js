@@ -10,7 +10,8 @@ import {
   getDocs,
   serverTimestamp,
   writeBatch,
-  limit, // ✅ added
+  limit,
+  where, // ✅ added
 } from "firebase/firestore";
 import { db } from "../firebase/clientApp";
 
