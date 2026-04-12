@@ -26,9 +26,14 @@ export default function Home() {
     avatarRef.current.switchGesture(index);
   };
 
+  // ✅ UPDATED VRMA LIST
   const vrmaGestures = [
     { name: "Wave", path: "/VRMA/Waving.vrma" },
     { name: "Cartwheel", path: "/VRMA/Cartwheel.vrma" },
+    { name: "Arguing", path: "/VRMA/Arguing.vrma" },
+    { name: "Chicken Dance", path: "/VRMA/Chickendance.vrma" },
+    { name: "Macarena Dance", path: "/VRMA/Macarenadance.vrma" },
+    { name: "Focus", path: "/VRMA/Focus.vrma" },
   ];
 
   return (
@@ -71,18 +76,18 @@ export default function Home() {
           {/* LEFT COLUMN */}
           <div className="relative flex flex-col justify-center items-center w-full md:w-1/2 h-full">
 
-            {/* AVATAR (BIGGER NOW) */}
+            {/* AVATAR */}
             <div className="w-full h-full flex justify-center items-center">
               <div className="w-full h-full max-h-[750px] max-w-[650px]">
                 <VRMAvatar
                   customAvatarRef={avatarRef}
                   vrmaGestures={vrmaGestures.map((g) => g.path)}
-                  defaultGestureIndex={0} // Wave default
+                  defaultGestureIndex={0}
                 />
               </div>
             </div>
 
-            {/* DROPDOWN (BOTTOM-LEFT OF AVATAR) */}
+            {/* DROPDOWN */}
             <div className="absolute bottom-0.5 left-1">
               <select
                 onChange={(e) => handleGestureClick(Number(e.target.value))}
