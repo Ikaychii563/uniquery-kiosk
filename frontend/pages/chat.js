@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import { useRouter } from "next/router";
 import { auth } from "../firebase/clientApp";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 import toast from "react-hot-toast";
 import {
   getUserProfile,
@@ -13,6 +13,7 @@ import {
   appendThreadMessage,
   keepOnlyLastNThreads,
   touchThread,
+  deleteThread,
 } from "../lib/firestoreHelpers";
 
 // IMPORT VIRTUAL KEYBOARD
@@ -390,8 +391,6 @@ if (user && !isPublicAccess && !activeThreadId) {
     const finalMessages = [...updatedMessages, aiMsg];
     setMessages(finalMessages);
 
-    
-
     // Logged-in: save assistant reply (DO NOT refresh recents here)
 if (user && !isPublicAccess && activeThreadId) {
   await appendThreadMessage(user.uid, modelKey, activeThreadId, aiMsg);
@@ -416,6 +415,36 @@ if (user && !isPublicAccess && activeThreadId) {
   setSending(false);
 }
 
+const handleClearRecents = async () => {
+  if (user && !isPublicAccess) {
+    // delete all Firestore threads (UI only version first)
+    for (const t of recentThreads) {
+      await deleteThread(user.uid, modelKey, t.id);
+    }
+
+    setRecentThreads([]);
+  } else {
+    // guest mode
+    setGuestThreads([]);
+    localStorage.removeItem(GUEST_KEY);
+  }
+};
+
+
+const handleDeleteRecent = async (threadIdToDelete) => {
+  if (user && !isPublicAccess) {
+    await deleteThread(user.uid, modelKey, threadIdToDelete);
+
+    const updated = recentThreads.filter((t) => t.id !== threadIdToDelete);
+    setRecentThreads(updated);
+  } else {
+    const updated = guestThreads.filter((t) => t.id !== threadIdToDelete);
+    setGuestThreads(updated);
+    saveGuestThreads(updated);
+  }
+};
+
+
   async function handleNewChat() {
   const hasRealConversation = messages.some((m) => m.role === "user" && m.content?.trim());
 
@@ -426,28 +455,31 @@ if (user && !isPublicAccess && activeThreadId) {
 
     // ✅ Only finalize/store if there's a real convo
     if (hasRealConversation) {
-      let currentId = threadId;
+  let currentId = threadId;
 
-      // If conversation has no thread yet, create one now
-      if (!currentId) {
-        currentId = await createThread(user.uid, modelKey);
+  if (!currentId) {
+    currentId = await createThread(user.uid, modelKey);
 
-        // Save all current messages to Firestore
-        for (const msg of messages) {
-          await appendThreadMessage(user.uid, modelKey, currentId, msg);
-        }
-      }
-
-      // ✅ IMPORTANT: mark as recent ONLY when real convo exists
-      await touchThread(user.uid, modelKey, currentId);
-
-      // keep only 3 finalized recents
-      await keepOnlyLastNThreads(user.uid, modelKey, 3);
-
-      // refresh sidebar recents
-      const recents = await getRecentThreads(user.uid, modelKey, 3);
-      setRecentThreads(recents);
+    for (const msg of messages) {
+      await appendThreadMessage(user.uid, modelKey, currentId, msg);
     }
+  }
+
+  // ✅ safety check
+  if (!currentId || !hasRealConversation) return;
+
+  // ✅ prevent duplicate recents
+  const alreadyExists = recentThreads.some((t) => t.id === currentId);
+
+  if (!alreadyExists) {
+    await touchThread(user.uid, modelKey, currentId);
+  }
+
+  await keepOnlyLastNThreads(user.uid, modelKey, 3);
+
+  const recents = await getRecentThreads(user.uid, modelKey, 3);
+  setRecentThreads(recents);
+}
 
     // Start a NEW blank unsaved chat
     setThreadId(null);
@@ -486,14 +518,6 @@ if (user && !isPublicAccess && activeThreadId) {
   setShareOpen(false);
 }
 
-  function handleSignOut() {
-    signOut(auth).then(() => router.push("/login"));
-  }
-
-  // NEW: Handle sign in redirect
-  function handleSignIn() {
-    router.push("/login");
-  }
 
   // ✅ Generate QR (added)
   async function handleGenerateQR() {
@@ -569,12 +593,6 @@ if (user && !isPublicAccess && activeThreadId) {
         </div>
 
         {/* Sign In/Out stays in header (unchanged) */}
-        <button
-          onClick={user ? handleSignOut : handleSignIn}
-          className="bg-[#faa029] text-black font-semibold px-5 py-2 rounded-full shadow"
-        >
-          {user ? "Sign Out" : "Sign In"}
-        </button>
       </header>
 
       {/* FOOTER */}
@@ -945,29 +963,38 @@ if (user && !isPublicAccess && activeThreadId) {
           <div className="h-[1px] bg-white/40 mb-4"></div>
           
           <div className="flex flex-col gap-2 overflow-y-auto">
-            {recentsToShow.map((t) => (
-              <button
-              key={t.id}
-              className="text-left text-xs bg-white/10 hover:bg-white/20 px-3 py-2 rounded"
-              onClick={async () => {
-                if (user && !isPublicAccess) {
-          // Logged-in: load from Firestore
-          setThreadId(t.id);
-          const msgs = await getThreadMessages(user.uid, modelKey, t.id);
-          setMessages(msgs.map((m) => ({ role: m.role, content: m.content })));
-        } else {
-          // Guest: load from localStorage memory
-          // 
-          setGuestThreadId(t.id);
-          setMessages(t.messages || []);
-        }
-      }}
+  {recentsToShow.map((t) => (
+    <div
+      key={t.id}
+      className="flex items-center justify-between bg-white/10 hover:bg-white/20 px-2 py-2 rounded"
+    >
+      {/* THREAD BUTTON */}
+      <button
+        className="text-left text-xs flex-1"
+        onClick={async () => {
+          if (user && !isPublicAccess) {
+            setThreadId(t.id);
+            const msgs = await getThreadMessages(user.uid, modelKey, t.id);
+            setMessages(msgs.map((m) => ({ role: m.role, content: m.content })));
+          } else {
+            setGuestThreadId(t.id);
+            setMessages(t.messages || []);
+          }
+        }}
       >
         {t.title || "Chat"}
-        </button>
-      ))}
-      </div>
+      </button>
 
+      {/* ❌ DELETE BUTTON */}
+      <button
+        onClick={() => handleDeleteRecent(t.id)}
+        className="text-red-300 hover:text-red-500 text-xs px-2"
+      >
+        ✕
+      </button>
+    </div>
+  ))}
+</div>
 
 
           {/* USER INFO */}

@@ -11,152 +11,98 @@ import {
   serverTimestamp,
   writeBatch,
   limit,
-  where, // ✅ added
+  where,
 } from "firebase/firestore";
+
 import { db } from "../firebase/clientApp";
 
 
+// ======================================================
+// ✅ OLD SINGLE-CONVERSATION SYSTEM (kept for safety)
+// ======================================================
 
-/**
- * =========================
- * ✅ EXISTING (single-thread per model)
- * (kept so nothing breaks)
- * =========================
- */
-
-/**
- * Read conversation messages (returns array sorted by createdAt)
- */
 export async function getConversationMessages(uid, model) {
   const col = collection(db, "users", uid, "conversations", model, "messages");
   const q = query(col, orderBy("createdAt", "asc"));
   const snaps = await getDocs(q);
+
   return snaps.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-/**
- * Append a message as a document (uses serverTimestamp)
- * message: { role, content }
- */
 export async function appendMessageDoc(uid, model, message) {
   const col = collection(db, "users", uid, "conversations", model, "messages");
   await addDoc(col, { ...message, createdAt: serverTimestamp() });
 }
 
-/**
- * Clear conversation: top-level marker to indicate cleared
- */
 export async function clearConversationMarker(uid, model) {
   const ref = doc(db, "users", uid, "conversations", model);
   await setDoc(ref, { clearedAt: serverTimestamp() }, { merge: true });
 }
 
-/**
- * Get conversation object with messages and clearedAt timestamp
- * Returns: { messages: [...], clearedAt: Timestamp | null }
- */
 export async function getConversation(uid, model) {
   const [messages, convSnap] = await Promise.all([
     getConversationMessages(uid, model),
     getDoc(doc(db, "users", uid, "conversations", model)),
   ]);
 
-  const clearedAt = convSnap.exists() ? convSnap.data().clearedAt || null : null;
+  const clearedAt = convSnap.exists()
+    ? convSnap.data().clearedAt || null
+    : null;
 
-  // Filter messages if clearedAt exists
-  const filteredMessages = clearedAt
-    ? messages.filter((msg) => msg.createdAt?.toMillis() > clearedAt.toMillis())
-    : messages;
-
-  return { messages: filteredMessages, clearedAt };
+  return {
+    messages: clearedAt
+      ? messages.filter(
+          (m) => m.createdAt?.toMillis() > clearedAt.toMillis()
+        )
+      : messages,
+    clearedAt,
+  };
 }
 
-/**
- * Set conversation - reset to empty or specific messages
- */
 export async function setConversation(uid, model, messages = []) {
   const convRef = doc(db, "users", uid, "conversations", model);
-  const messagesCol = collection(
-    db,
-    "users",
-    uid,
-    "conversations",
-    model,
-    "messages"
-  );
+  const messagesCol = collection(db, "users", uid, "conversations", model, "messages");
 
-  // Get all existing messages to delete them
-  const existingMessages = await getDocs(messagesCol);
+  const existing = await getDocs(messagesCol);
   const batch = writeBatch(db);
 
-  // Delete all existing messages
-  existingMessages.docs.forEach((d) => {
-    batch.delete(d.ref);
-  });
+  existing.forEach((d) => batch.delete(d.ref));
 
-  // Set clearedAt timestamp
   batch.set(convRef, { clearedAt: serverTimestamp() }, { merge: true });
 
-  // Add new messages if provided
-  messages.forEach((message) => {
-    const newMessageRef = doc(messagesCol);
-    batch.set(newMessageRef, { ...message, createdAt: serverTimestamp() });
+  messages.forEach((m) => {
+    const newRef = doc(messagesCol);
+    batch.set(newRef, { ...m, createdAt: serverTimestamp() });
   });
 
   await batch.commit();
 }
 
-/**
- * Create a user profile with name, nickname and email
- * uid: user uid
- * userData: { name, nickname, email }
- */
-export async function createUserProfile(uid, userData) {
-  try {
-    await setDoc(doc(db, "users", uid), {
-      name: userData.name || "",
-      nickname: userData.nickname || "",
-      email: userData.email || "",
-      createdAt: serverTimestamp(),
-    });
-  } catch (err) {
-    console.error("Error creating user profile:", err);
-    throw err;
-  }
-}
-
-/**
- * Get user profile data
- */
-export async function getUserProfile(uid) {
-  try {
-    const userDocRef = doc(db, "users", uid);
-    const userDocSnap = await getDoc(userDocRef);
-
-    if (userDocSnap.exists()) {
-      return userDocSnap.data();
-    }
-    return null;
-  } catch (err) {
-    console.error("Error getting user profile:", err);
-    throw err;
-  }
-}
-
-/**
- * Aliases for frontend code consistency
- */
 export const appendMessage = appendMessageDoc;
 
-/**
- * =========================
- * ✅ NEW (Option B: multi-thread conversations with Recents)
- * Path:
- * users/{uid}/conversations/{model}/threads/{threadId}
- * users/{uid}/conversations/{model}/threads/{threadId}/messages/{messageId}
- * =========================
- */
 
+// ======================================================
+// 👤 USER PROFILE
+// ======================================================
+
+export async function createUserProfile(uid, userData) {
+  await setDoc(doc(db, "users", uid), {
+    name: userData.name || "",
+    nickname: userData.nickname || "",
+    email: userData.email || "",
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function getUserProfile(uid) {
+  const snap = await getDoc(doc(db, "users", uid));
+  return snap.exists() ? snap.data() : null;
+}
+
+
+// ======================================================
+// 🧵 THREAD SYSTEM (RECENTS)
+// ======================================================
 
 function threadsCol(uid, model) {
   return collection(db, "users", uid, "conversations", model, "threads");
@@ -179,116 +125,128 @@ function threadMessagesCol(uid, model, threadId) {
   );
 }
 
-/**
- * Create a new empty thread and return its id
- * ✅ IMPORTANT: updatedAt is NULL so it won't appear in Recents until finalized
- */
+
+// Create new thread (NOT recent yet)
 export async function createThread(uid, model) {
   const threadId = Date.now().toString();
 
   await setDoc(threadDoc(uid, model, threadId), {
     title: "New Chat",
     createdAt: serverTimestamp(),
-    updatedAt: null, // ✅ don't make it "recent" yet
+    updatedAt: null,
   });
 
   return threadId;
 }
 
-/**
- * Finalize / touch a thread so it becomes a Recent
- * ✅ Call this ONLY on "+ New Chat"
- */
+
+// Mark thread as recent
 export async function touchThread(uid, model, threadId) {
-  const tRef = threadDoc(uid, model, threadId);
-  await setDoc(tRef, { updatedAt: serverTimestamp() }, { merge: true });
+  await setDoc(
+    threadDoc(uid, model, threadId),
+    { updatedAt: serverTimestamp() },
+    { merge: true }
+  );
 }
 
-/**
- * Get last N threads (Recents)
- * ✅ Only threads with updatedAt != null are included
- */
+
+// Get recent threads (IMPORTANT FIX: avoids unstable query issues)
 export async function getRecentThreads(uid, model, limitCount = 3) {
   const q = query(
     threadsCol(uid, model),
-    where("updatedAt", "!=", null),
     orderBy("updatedAt", "desc"),
     limit(limitCount)
   );
 
   const snap = await getDocs(q);
+
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((t) => t.updatedAt); // client-side safety filter
+}
+
+
+// Get messages of a thread
+export async function getThreadMessages(uid, model, threadId) {
+  const q = query(
+    threadMessagesCol(uid, model, threadId),
+    orderBy("createdAt", "asc")
+  );
+
+  const snap = await getDocs(q);
+
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-/**
- * Get messages for a specific thread (sorted oldest->newest)
- */
-export async function getThreadMessages(uid, model, threadId) {
-  const col = threadMessagesCol(uid, model, threadId);
-  const q = query(col, orderBy("createdAt", "asc"));
-  const snaps = await getDocs(q);
-  return snaps.docs.map((d) => ({ id: d.id, ...d.data() }));
-}
 
-/**
- * Append message into a thread
- * ✅ DOES NOT update updatedAt anymore (so Recents doesn't reorder while chatting)
- * ✅ Still sets title from first user msg
- */
+// Append message to thread
 export async function appendThreadMessage(uid, model, threadId, message) {
   const col = threadMessagesCol(uid, model, threadId);
 
-  // Add message
-  await addDoc(col, { ...message, createdAt: serverTimestamp() });
+  await addDoc(col, {
+    ...message,
+    createdAt: serverTimestamp(),
+  });
 
-  // Update thread title if still default
   const tRef = threadDoc(uid, model, threadId);
   const tSnap = await getDoc(tRef);
 
   const prevTitle = tSnap.exists() ? tSnap.data().title : "New Chat";
+
   const nextTitle =
     prevTitle === "New Chat" && message.role === "user"
-      ? (message.content || "New Chat").slice(0, 30)
+      ? message.content.slice(0, 30)
       : prevTitle;
 
   await setDoc(
     tRef,
     {
       title: nextTitle,
-      createdAt: tSnap.exists() ? tSnap.data().createdAt : serverTimestamp(),
-      // ❌ DO NOT update updatedAt here
+      createdAt: tSnap.exists()
+        ? tSnap.data().createdAt
+        : serverTimestamp(),
     },
     { merge: true }
   );
 }
 
-/**
- * Keep only last N threads (deletes older threads and their messages)
- * ✅ Only considers finalized threads (updatedAt != null)
- */
+
+// Keep only last N threads
 export async function keepOnlyLastNThreads(uid, model, n = 3) {
   const q = query(
     threadsCol(uid, model),
-    where("updatedAt", "!=", null),
     orderBy("updatedAt", "desc")
   );
 
   const snap = await getDocs(q);
-  const docs = snap.docs;
+
+  const docs = snap.docs.filter((d) => d.data().updatedAt);
 
   if (docs.length <= n) return;
 
-  const toDelete = docs.slice(n);
   const batch = writeBatch(db);
+  const toDelete = docs.slice(n);
 
   for (const t of toDelete) {
-    // delete thread messages
-    const msgSnap = await getDocs(threadMessagesCol(uid, model, t.id));
-    msgSnap.docs.forEach((m) => batch.delete(m.ref));
+    const msgs = await getDocs(threadMessagesCol(uid, model, t.id));
 
-    // delete thread doc
+    msgs.forEach((m) => batch.delete(m.ref));
     batch.delete(t.ref);
   }
+
+  await batch.commit();
+}
+
+
+// Delete thread completely
+export async function deleteThread(uid, model, threadId) {
+  const tRef = threadDoc(uid, model, threadId);
+  const msgs = await getDocs(threadMessagesCol(uid, model, threadId));
+
+  const batch = writeBatch(db);
+
+  msgs.forEach((m) => batch.delete(m.ref));
+  batch.delete(tRef);
 
   await batch.commit();
 }

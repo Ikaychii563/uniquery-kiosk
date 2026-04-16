@@ -29,11 +29,12 @@ export default function Home() {
   // ✅ UPDATED VRMA LIST
   const vrmaGestures = [
     { name: "Wave", path: "/VRMA/Waving.vrma" },
-    { name: "Cartwheel", path: "/VRMA/Cartwheel.vrma" },
     { name: "Arguing", path: "/VRMA/Arguing.vrma" },
     { name: "Chicken Dance", path: "/VRMA/Chickendance.vrma" },
     { name: "Macarena Dance", path: "/VRMA/Macarenadance.vrma" },
-    { name: "Focus", path: "/VRMA/Focus.vrma" },
+    { name: "Nodding", path: "/VRMA/Nodding.vrma" },
+    { name: "Angry", path: "/VRMA/Angry.vrma" },
+    { name: "Shrugging", path: "/VRMA/Shrugging.vrma" },
   ];
 
   return (
@@ -48,20 +49,13 @@ export default function Home() {
 
       {/* HEADER */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-black/30 text-white py-1.5 px-4 flex justify-between items-center shadow-sm">
-        <div className="flex items-center gap-2">
-          <img src="/tuplogo.png" alt="TUP Logo" className="h-7 w-7" />
-          <h1 className="text-xs md:text-sm font-bold">
-            TECHNOLOGICAL UNIVERSITY OF THE PHILIPPINES
-          </h1>
-        </div>
-
-        <button
-          onClick={() => router.push("/login")}
-          className="bg-[#faa029] text-black font-semibold px-5 py-2 rounded-full shadow"
-        >
-          Sign In
-        </button>
-      </header>
+  <div className="flex items-center gap-2">
+    <img src="/tuplogo.png" alt="TUP Logo" className="h-7 w-7" />
+    <h1 className="text-xs md:text-sm font-bold">
+      TECHNOLOGICAL UNIVERSITY OF THE PHILIPPINES
+    </h1>
+  </div>
+</header>
 
       {/* MAIN */}
       <main className="relative z-20 flex flex-col justify-start items-center h-full pt-[70px] px-2 md:px-6">
@@ -117,25 +111,25 @@ export default function Home() {
             <div className="flex justify-center items-center gap-4 w-full">
 
               <button
-                onClick={() => handlePublicModelClick("nav")}
-                className="bg-[#aa3636] text-white font-bold text-lg px-6 md:px-10 py-3 md:py-4 rounded-3xl shadow-xl flex-1 max-w-[150px]"
-              >
-                Campus <br /> Navigation
-              </button>
+  onClick={() => handlePublicModelClick("nav")}
+  className="bg-[#aa3636] text-white font-bold text-lg px-6 md:px-10 py-3 md:py-4 rounded-3xl shadow-xl flex-1 max-w-[150px] flex flex-col justify-center items-center text-center"
+>
+  Campus <br /> Navigation
+</button>
 
-              <button
-                onClick={() => handlePublicModelClick("info")}
-                className="bg-[#aa3636] text-white font-bold text-lg px-6 md:px-10 py-3 md:py-4 rounded-3xl shadow-xl flex-1 max-w-[150px]"
-              >
-                General <br /> Information
-              </button>
+<button
+  onClick={() => handlePublicModelClick("info")}
+  className="bg-[#aa3636] text-white font-bold text-lg px-6 md:px-10 py-3 md:py-4 rounded-3xl shadow-xl flex-1 max-w-[150px] flex flex-col justify-center items-center text-center"
+>
+  General <br /> Information
+</button>
 
-              <button
-                onClick={() => handlePublicModelClick("ece")}
-                className="bg-[#aa3636] text-white font-bold text-lg px-6 md:px-10 py-3 md:py-4 rounded-3xl shadow-xl flex-1 max-w-[150px]"
-              >
-                ECE <br /> Queries
-              </button>
+<button
+  onClick={() => handlePublicModelClick("ece")}
+  className="bg-[#aa3636] text-white font-bold text-lg px-6 md:px-10 py-3 md:py-4 rounded-3xl shadow-xl flex-1 max-w-[150px] flex flex-col justify-center items-center text-center"
+>
+  ECE <br /> Queries
+</button>
 
             </div>
           </div>
