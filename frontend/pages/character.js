@@ -141,6 +141,23 @@ export default function CharacterPage() {
   };
 
 
+const frameRef = useRef(1);
+
+useEffect(() => {
+  const maxFrames = ANIMATIONS[avatarState] || 420;
+
+  const timer = setInterval(() => {
+    frameRef.current =
+      frameRef.current >= maxFrames ? 1 : frameRef.current + 1;
+
+    setFrameIndex(frameRef.current);
+  }, 60); // slightly slower = smoother
+
+  return () => clearInterval(timer);
+}, [avatarState]);
+
+
+
   useEffect(() => {
     if (!loading && !hasWaved) {
       setAvatarState("waving");
@@ -152,12 +169,15 @@ export default function CharacterPage() {
   }, [loading, hasWaved]);
 
   useEffect(() => {
-    const maxFrames = ANIMATIONS[avatarState] || 420;
-    const timer = setInterval(() => {
-      setFrameIndex((prev) => (prev >= maxFrames ? 1 : prev + 1));
-    }, 42); 
-    return () => clearInterval(timer);
-  }, [avatarState]);
+  const maxFrames = ANIMATIONS[avatarState] || 100;
+
+  for (let i = 1; i <= maxFrames; i++) {
+    const img = new Image();
+    img.src = `/assets/AnimeModel_animation/${avatarState}/frame_${i
+      .toString()
+      .padStart(3, "0")}.webp`;
+  }
+}, [avatarState]);
 
   useEffect(() => {
     if (thinking) {
@@ -443,10 +463,14 @@ async function handleGenerateQR() {
       <div className="fixed inset-0 flex flex-col items-center justify-center pointer-events-none z-0">
         <div className="relative h-full w-full flex items-end justify-center">
           <img 
-            src={`/assets/AnimeModel_animation/${avatarState}/frame_${frameIndex.toString().padStart(3, '0')}.webp`} 
-            alt="Character"
-            className="h-full w-auto object-contain drop-shadow-2xl"
-          />
+  src={`/assets/AnimeModel_animation/${avatarState}/frame_${frameIndex
+    .toString()
+    .padStart(3, "0")}.webp`}
+  alt="Character"
+  className="h-full w-auto object-contain drop-shadow-2xl"
+  loading="eager"
+  draggable={false}
+/>
         </div>
       </div>
 

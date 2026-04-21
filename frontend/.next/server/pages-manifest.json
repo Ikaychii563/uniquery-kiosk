@@ -2,7 +2,7 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/share/[id]": "pages/share/[id].js",
+  "/character": "pages/character.js",
   "/": "pages/index.js",
-  "/character": "pages/character.js"
+  "/login": "pages/login.js"
 }
