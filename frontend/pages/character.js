@@ -123,6 +123,11 @@ export default function CharacterPage() {
   const [shareId, setShareId] = useState(null);
   const [shareOpen, setShareOpen] = useState(false);
 
+  const shareUrl =
+  shareId && typeof window !== "undefined"
+    ? `${window.location.origin}/share/${shareId}`
+    : "";
+
   // ==========================================
   // ANIMATION LOGIC (UNTOUCHED)
   // ==========================================
@@ -134,6 +139,7 @@ export default function CharacterPage() {
     angry: 460, idle: 420, shrugging: 50, talking: 200,
     thinking: 160, thinking_1: 160, thoughtfulnod: 160, waving: 100
   };
+
 
   useEffect(() => {
     if (!loading && !hasWaved) {
@@ -237,6 +243,8 @@ export default function CharacterPage() {
   lastScrollTopRef.current = currentScrollTop;
 }, [showKeyboard]);
 
+
+
 useEffect(() => {
   const chatContainer = chatContainerRef.current;
   if (!chatContainer) return;
@@ -251,42 +259,138 @@ useEffect(() => {
   }
 }, [showKeyboard]);
 
-  /* SEND MESSAGE */
-  async function handleSend(e) {
-    e.preventDefault();
-    const trimmed = input.trim();
-    if (!trimmed) return;
-    const userMsg = { role: "user", content: trimmed };
-    const updatedMessages = [...messages, userMsg];
-    setMessages(updatedMessages); setInput(""); setSending(true); setThinking(true); setShowKeyboard(false);
-    toast.loading("Sending...", { id: "send" });
-    let activeId = threadId;
-    if (user && !isPublicAccess && !activeId) { activeId = await createThread(user.uid, modelKey); setThreadId(activeId); }
-    try {
-      if (user && !isPublicAccess && activeId) await appendThreadMessage(user.uid, modelKey, activeId, userMsg);
-      const res = await fetch(selectedModel.url, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ inputs: trimmed, parameters: { max_new_tokens: 500, temperature: 0.7 } }),
-      });
-      const raw = await res.text();
-      const reply = formatAIResponse(raw);
-      const aiMsg = { role: "assistant", content: reply };
-      setMessages([...updatedMessages, aiMsg]);
-      if (user && !isPublicAccess && activeId) await appendThreadMessage(user.uid, modelKey, activeId, aiMsg);
-      else if (isPublicAccess) {
-        let gid = guestThreadId || Date.now().toString(); setGuestThreadId(gid);
-        const nt = { id: gid, title: updatedMessages[0].content.slice(0, 30), messages: [...updatedMessages, aiMsg], updatedAt: Date.now() };
-        const up = [nt, ...guestThreads.filter(t => t.id !== gid)].slice(0, 3);
-        setGuestThreads(up); localStorage.setItem(`guest_threads_${modelKey}`, JSON.stringify(up));
-      }
-      toast.success("Reply Received", { id: "send" });
-    } catch (err) {
-      const errorMsg = { role: "assistant", content: "⚠️ No response after 1 minute. Please try again." };
-      setMessages([...updatedMessages, errorMsg]);
-      toast.error("Send failed", { id: "send" });
+  
+async function handleGenerateQR() {
+  try {
+    if (!messages || messages.length === 0) {
+      toast.error("No conversation to share yet.");
+      return;
     }
-    setThinking(false); setSending(false);
+
+    toast.loading("Generating QR...", { id: "share" });
+
+    const res = await fetch("/api/share", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        modelKey: modelKey,
+        createdAt: Date.now(),
+        messages: messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+      }),
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const data = await res.json();
+
+    setShareId(data.id);
+    setShareOpen(true);
+
+    toast.success("QR ready!", { id: "share" });
+  } catch (e) {
+    toast.error(`Failed: ${e.message}`, { id: "share" });
   }
+}
+
+
+/* SEND MESSAGE */
+  async function handleSend(e) {
+  e.preventDefault();
+
+  const trimmed = input.trim();
+  if (!trimmed || sending) return;
+
+  const userMsg = { role: "user", content: trimmed };
+  const updatedMessages = [...messages, userMsg];
+
+  setMessages(updatedMessages);
+  setInput("");
+  setSending(true);
+  setThinking(true);
+  setShowKeyboard(false);
+
+  toast.loading("Sending...", { id: "send" });
+
+  let activeId = threadId;
+
+  try {
+    // THREAD CREATION (same as chat.js logic)
+    if (user && !isPublicAccess && !activeId) {
+      activeId = await createThread(user.uid, modelKey);
+      setThreadId(activeId);
+    }
+
+    if (user && !isPublicAccess && activeId) {
+      await appendThreadMessage(user.uid, modelKey, activeId, userMsg);
+    }
+
+    // 🔥 SAME FETCH STYLE AS CHAT.JS (IMPORTANT FIX)
+    const res = await fetch(selectedModel.url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+
+      // IMPORTANT: match chat.js style input handling
+      body: JSON.stringify({
+  query: trimmed,
+}),
+    });
+
+    const raw = await res.text();
+
+    // 🔥 SAME FORMATTER AS CHAT.JS SHOULD BE USED
+    const reply = formatAIResponse(raw);
+
+    const aiMsg = { role: "assistant", content: reply };
+
+    const finalMessages = [...updatedMessages, aiMsg];
+    setMessages(finalMessages);
+
+    if (user && !isPublicAccess && activeId) {
+      await appendThreadMessage(user.uid, modelKey, activeId, aiMsg);
+    } else if (isPublicAccess) {
+      let gid = guestThreadId || Date.now().toString();
+      setGuestThreadId(gid);
+
+      const nt = {
+        id: gid,
+        title: updatedMessages[0].content.slice(0, 30),
+        messages: finalMessages,
+        updatedAt: Date.now(),
+      };
+
+      const up = [
+        nt,
+        ...guestThreads.filter((t) => t.id !== gid),
+      ].slice(0, 3);
+
+      setGuestThreads(up);
+      localStorage.setItem(
+        `guest_threads_${modelKey}`,
+        JSON.stringify(up)
+      );
+    }
+
+    toast.success("Reply Received", { id: "send" });
+  } catch (err) {
+    console.error("HF ERROR:", err);
+
+    const errorMsg = {
+      role: "assistant",
+      content: "⚠️ No response after 1 minute. Please try again.",
+    };
+
+    setMessages([...updatedMessages, errorMsg]);
+    toast.error("Send failed", { id: "send" });
+  }
+
+  setThinking(false);
+  setSending(false);
+}
 
   const handleDeleteRecent = async (tid) => {
     if (user && !isPublicAccess) {
@@ -299,11 +403,17 @@ useEffect(() => {
   };
 
   const handleToggleMode = () => {
-    const aid = isPublicAccess ? guestThreadId : threadId;
-    const query = new URLSearchParams({ model: modelKey, public: isPublicAccess });
-    if (aid) query.append("threadId", aid);
-    router.push(`/chat?${query.toString()}`);
-  };
+  const aid = isPublicAccess ? guestThreadId : threadId;
+
+  const query = new URLSearchParams({
+    model: modelKey,
+    public: isPublicAccess,
+  });
+
+  if (aid) query.append("threadId", aid);
+
+  router.push(`/chat?${query.toString()}`);
+};
 
   if (loading) return <div className="h-screen flex items-center justify-center text-xl">Loading…</div>;
 
@@ -458,60 +568,68 @@ useEffect(() => {
         >
           
           <div className="px-6 pt-3 flex justify-end gap-2 relative z-20">
-            <button onClick={handleToggleMode} className="px-4 py-2 rounded-full shadow font-semibold text-xs bg-[#faa029] text-black hover:bg-[#d88c20] transition">💬 Chat Mode</button>
-            <button 
-              onClick={() => setShareOpen(true)} 
-              disabled={messages.length === 0}
-              className={`px-4 py-2 rounded-full shadow font-semibold text-xs transition ${
-                messages.length === 0
-                ? "bg-white/50 text-gray-700 cursor-not-allowed"
-                : "bg-white/90 text-black hover:bg-white"
-              }`}
-            >
-              Generate QR
-            </button>
-          </div>
+  <button
+    onClick={handleToggleMode}
+    className="px-4 py-2 rounded-full shadow font-semibold text-xs bg-[#faa029] text-black hover:bg-[#d88c20] transition"
+  >
+    💬 Chat Mode
+  </button>
 
-          {/* BUBBLES AREA */}
-          <div
-          ref={chatContainerRef}
-          className="flex-1 relative px-6 overflow-hidden pointer-events-none z-10">
-            {/* 🔴 USER BUBBLE - RED/WHITE TEXT */}
-            {(() => {
-              const lastUser = [...messages].reverse().find(m => m.role === 'user');
-              if (lastUser) return (
-                <div className="absolute top-[55%] left-[5%] max-w-[30%] z-20 flex flex-col items-start transform -translate-y-1/2 pointer-events-auto">
-                  <div className="bg-[#aa3636] text-white px-5 py-4 rounded-3xl rounded-bl-sm shadow-2xl text-sm font-medium border border-red-800">
-                    {lastUser.content}
-                  </div>
-                  <div className="w-12 h-12 bg-black rounded-full mt-2 ml-[-10px] flex items-center justify-center text-white shadow-lg border-2 border-white">👤</div>
-                </div>
-              );
-              return null;
-            })()}
+  <button
+    onClick={handleGenerateQR}
+    className="px-4 py-2 bg-white rounded-full text-xs font-bold shadow hover:bg-gray-100 transition"
+  >
+    Generate QR
+  </button>
+</div>
 
-            {/* ⚪ AI BUBBLE - WHITE (Tail positioned at top-left pointing left) */}
-            {(() => {
-              if (thinking) return (
-                <div className="absolute top-[12%] right-[6%] max-w-[55%] z-20 pointer-events-auto">
-                  <div className="bg-white text-black border border-gray-100 px-8 py-5 rounded-[2rem] shadow-xl text-xl font-bold flex items-center gap-1 animate-bounce relative">
-                    Thinking<span className="dot">.</span><span className="dot">.</span><span className="dot">.</span>
-                    <div className="absolute top-[20px] left-[-14px] w-0 h-0 border-t-[10px] border-t-transparent border-b-[10px] border-b-transparent border-r-[15px] border-r-white"></div>
-                  </div>
-                </div>
-              );
-              const lastAI = [...messages].reverse().find(m => m.role === 'assistant');
-              if (lastAI) return (
-                <div className="absolute top-[12%] right-[6%] max-w-[55%] z-20 pointer-events-auto">
-                  <div className="bg-white text-black border border-gray-100 px-8 py-6 rounded-[2rem] shadow-xl text-[15px] leading-relaxed relative">
-                    <SimpleMarkdownRenderer text={lastAI.content} />
-                    <div className="absolute top-[24px] left-[-14px] w-0 h-0 border-t-[10px] border-t-transparent border-b-[10px] border-b-transparent border-r-[15px] border-r-white"></div>
-                  </div>
-                </div>
-              );
-              return null;
-            })()}
+         {/* BUBBLES AREA */}
+<div
+  ref={chatContainerRef}
+  className="flex-1 relative px-6 overflow-hidden z-10"
+>
+  {/* 🔴 USER BUBBLE (RIGHT SIDE) */}
+  {(() => {
+    const lastUser = [...messages].reverse().find(m => m.role === "user");
+
+    if (!lastUser) return null;
+
+    return (
+      <div className="absolute top-[55%] right-[5%] max-w-[30%] z-20 flex flex-col items-end transform -translate-y-1/2 pointer-events-auto">
+        <div className="bg-[#aa3636] text-white px-5 py-4 rounded-3xl rounded-br-sm shadow-2xl text-sm font-medium border border-red-800">
+          {lastUser.content}
+        </div>
+
+        <div className="w-12 h-12 bg-black rounded-full mt-2 mr-[-10px] flex items-center justify-center text-white shadow-lg border-2 border-white">
+          👤
+        </div>
+      </div>
+    );
+  })()}
+
+  {/* ⚪ AI BUBBLE (LEFT SIDE) */}
+  {(() => {
+    const lastAI = [...messages].reverse().find(m => m.role === "assistant");
+
+    return (
+      <div className="absolute top-[6%] left-[2%] max-w-[32%] z-20 pointer-events-auto">
+        {thinking ? (
+          <div className="bg-white text-black border border-gray-100 px-8 py-5 rounded-[2rem] shadow-xl text-sm font-medium flex items-center gap-1 animate-bounce relative">
+            Thinking<span className="dot">.</span><span className="dot">.</span><span className="dot">.</span>
+
+            <div className="absolute top-[20px] right-[-14px] w-0 h-0 border-t-[10px] border-t-transparent border-b-[10px] border-b-transparent border-l-[15px] border-l-white"></div>
           </div>
+        ) : lastAI ? (
+          <div className="bg-white text-black border border-gray-100 px-6 py-4 rounded-[2rem] shadow-xl text-xs leading-relaxed relative">
+            <SimpleMarkdownRenderer text={lastAI.content} />
+
+            <div className="absolute top-[24px] right-[-14px] w-0 h-0 border-t-[10px] border-t-transparent border-b-[10px] border-b-transparent border-l-[15px] border-l-white"></div>
+          </div>
+        ) : null}
+      </div>
+    );
+  })()}
+</div>
 
           {/* ✅ WIDE RESPONSIVE CHATBOX */}
           <form 
@@ -566,6 +684,7 @@ useEffect(() => {
           </form>
 
         </div></div>
+
 
       {/* KEYBOARD - FULLY SYNCED WITH REFERENCE */}
       {showKeyboard && (
@@ -854,7 +973,45 @@ useEffect(() => {
             }
           `}</style>
         </div>
+        
       )}
+      {/* ✅ QR MODAL - GLOBAL (ALWAYS WORKS) */}
+{shareOpen && shareId && (
+  <div className="fixed inset-0 z-[999] flex items-center justify-center">
+    <div
+      className="absolute inset-0 bg-black/50"
+      onClick={() => setShareOpen(false)}
+    />
+    <div className="relative bg-white rounded-2xl shadow-2xl border p-5 w-[320px] max-w-[90vw]">
+      <p className="text-sm font-bold text-center mb-1">
+        Scan to view on phone
+      </p>
+
+      <div className="flex justify-center">
+        <QRCodeCanvas value={shareUrl} size={220} includeMargin={true} />
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <button
+          className="flex-1 bg-[#aa3636] text-white text-xs font-semibold py-2 rounded-xl"
+          onClick={() => {
+            navigator.clipboard?.writeText(shareUrl);
+            toast.success("Link copied!");
+          }}
+        >
+          Copy Link
+        </button>
+
+        <button
+          className="flex-1 bg-gray-200 text-xs font-semibold py-2 rounded-xl"
+          onClick={() => setShareOpen(false)}
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }

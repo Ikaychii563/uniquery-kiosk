@@ -133,7 +133,7 @@ export async function createThread(uid, model) {
   await setDoc(threadDoc(uid, model, threadId), {
     title: "New Chat",
     createdAt: serverTimestamp(),
-    updatedAt: null,
+    updatedAt: serverTimestamp(),
   });
 
   return threadId;

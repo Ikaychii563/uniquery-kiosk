@@ -61,7 +61,7 @@ export default function Home() {
         <div className="flex flex-col md:flex-row justify-center items-stretch w-full h-[calc(100%-140px)] gap-4 md:gap-8">
 
           {/* LEFT COLUMN */}
-          <div className="flex flex-col w-full md:w-1/2 h-[calc(100%-40px)] justify-between pb-6 pt-4">
+          <div className="flex flex-col w-full md:w-1/2 h-[calc(100%-60px)] justify-between pb-6 pt-4">
 
             {/* AVATAR CONTAINER */}
             <div className="w-full flex-1 flex justify-center items-end min-h-0">
@@ -71,7 +71,7 @@ export default function Home() {
             </div>
 
             {/* DROPDOWN CONTAINER */}
-            <div className="w-full shrink-0 flex justify-start px-4 md:px-8 mt-6">
+            <div className="absolute bottom-16 left-4 md:left-8 z-20">
               <select
                 onChange={(e) => handleGestureClick(e.target.value)}
                 className="bg-[#faa029] text-black font-bold px-3 py-2 rounded-lg shadow-md text-sm w-[180px] outline-none"
