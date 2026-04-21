@@ -1,0 +1,65 @@
+{
+    "angry": {
+        "file": "sprite_sheet/angry_sprite.webp",
+        "frames": 460,
+        "cols": 20,
+        "w": 512,
+        "h": 288
+    },
+    "idle": {
+        "file": "sprite_sheet/idle_sprite.webp",
+        "frames": 420,
+        "cols": 20,
+        "w": 512,
+        "h": 288
+    },
+    "shrugging": {
+        "file": "sprite_sheet/shrugging_sprite.webp",
+        "frames": 50,
+        "cols": 20,
+        "w": 512,
+        "h": 288
+    },
+    "sprite_sheet": {
+        "file": "sprite_sheet/sprite_sheet_sprite.webp",
+        "frames": 3,
+        "cols": 20,
+        "w": 512,
+        "h": 331
+    },
+    "talking": {
+        "file": "sprite_sheet/talking_sprite.webp",
+        "frames": 200,
+        "cols": 20,
+        "w": 512,
+        "h": 288
+    },
+    "thinking": {
+        "file": "sprite_sheet/thinking_sprite.webp",
+        "frames": 160,
+        "cols": 20,
+        "w": 512,
+        "h": 288
+    },
+    "thinking_1": {
+        "file": "sprite_sheet/thinking_1_sprite.webp",
+        "frames": 160,
+        "cols": 20,
+        "w": 512,
+        "h": 288
+    },
+    "thoughtfulnod": {
+        "file": "sprite_sheet/thoughtfulnod_sprite.webp",
+        "frames": 160,
+        "cols": 20,
+        "w": 512,
+        "h": 288
+    },
+    "waving": {
+        "file": "sprite_sheet/waving_sprite.webp",
+        "frames": 100,
+        "cols": 20,
+        "w": 512,
+        "h": 288
+    }
+}

@@ -2,6 +2,8 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
+  "/api/share": "pages/api/share.js",
   "/": "pages/index.js",
-  "/chat": "pages/chat.js"
+  "/chat": "pages/chat.js",
+  "/character": "pages/character.js"
 }

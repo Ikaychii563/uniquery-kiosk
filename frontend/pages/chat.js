@@ -16,6 +16,7 @@ import {
   deleteThread,
 } from "../lib/firestoreHelpers";
 
+
 // IMPORT VIRTUAL KEYBOARD
 import Keyboard from "react-simple-keyboard";
 import "react-simple-keyboard/build/css/index.css";
@@ -39,6 +40,7 @@ const layout = {
     ],
   },
 };
+
 
 // Simple markdown renderer without external dependencies
 function SimpleMarkdownRenderer({ text }) {
@@ -573,6 +575,13 @@ const handleDeleteRecent = async (threadIdToDelete) => {
   
   const recentsToShow =user && !isPublicAccess ? recentThreads : guestThreads;
    
+  const handleToggleMode = () => {
+    const aid = isPublicAccess ? guestThreadId : threadId;
+    const query = new URLSearchParams({ model: modelKey, public: isPublicAccess });
+    if (aid) query.append("threadId", aid);
+    router.push(`/character?${query.toString()}`);
+  };
+
   return (
     <div
       className="relative h-screen w-screen overflow-hidden bg-cover bg-center"
@@ -928,73 +937,73 @@ const handleDeleteRecent = async (threadIdToDelete) => {
 
       {/* MAIN */}
       <div className="flex h-full relative z-10">
-        {/* SIDEBAR */}
-        <div
-          className="fixed bg-[#aa3636] text-white shadow-xl flex flex-col px-4 py-3 transition-transform duration-300"
-          style={{
-            top: headerHeight,
-            bottom: footerHeight,
-            width: sidebarWidth,
-            transform: sidebarOpen ? "translateX(0)" : `translateX(-100%)`,
-            zIndex: 60,
-          }}
-        >
-          {/* BACK BUTTON */}
-          <button
-            onClick={() => router.push(user ? "/models" : "/")}
-            className="flex items-center gap-1 text-[#faa029] transition mb-3"
-          >
-            <span className="text-xl">←</span>
-            <span className="text-sm font-semibold">
-              {user ? "Back to Menu" : "Back to Home"}
-            </span>
-          </button>
+                  {/* SIDEBAR */}
+                  <div
+                    className="fixed bg-[#aa3636] text-white shadow-xl flex flex-col px-4 py-3 transition-transform duration-300"
+                    style={{
+                      top: headerHeight,
+                      bottom: footerHeight,
+                      width: sidebarWidth,
+                      transform: sidebarOpen ? "translateX(0)" : `translateX(-100%)`,
+                      zIndex: 60,
+                    }}
+                  >
+                    {/* BACK BUTTON */}
+                    <button
+                      onClick={() => router.push(user ? "/models" : "/")}
+                      className="flex items-center gap-1 text-[#faa029] transition mb-3"
+                    >
+                      <span className="text-xl">←</span>
+                      <span className="text-sm font-semibold">
+                        {user ? "Back to Menu" : "Back to Home"}
+                      </span>
+                    </button>
 
-          {/* "+ NEW CHAT" */}
-          <button
-            onClick={handleNewChat}
-            className="w-full bg-white text-[#aa3636] font-bold py-1 rounded-full shadow mb-6 text-sm"
-            style={{ marginTop: "-4px" }}
-          >
-            + New Chat
-          </button>
+                    {/* "+ NEW CHAT" */}
+                    <button
+                      onClick={handleNewChat}
+                      className="w-full bg-white text-[#aa3636] font-bold py-1 rounded-full shadow mb-6 text-sm"
+                      style={{ marginTop: "-4px" }}
+                    >
+                      + New Chat
+                    </button>
 
-          <p className="text-sm opacity-80 mb-3">Recents</p>
-          <div className="h-[1px] bg-white/40 mb-4"></div>
-          
-          <div className="flex flex-col gap-2 overflow-y-auto">
-  {recentsToShow.map((t) => (
-    <div
-      key={t.id}
-      className="flex items-center justify-between bg-white/10 hover:bg-white/20 px-2 py-2 rounded"
-    >
-      {/* THREAD BUTTON */}
-      <button
-        className="text-left text-xs flex-1"
-        onClick={async () => {
-          if (user && !isPublicAccess) {
-            setThreadId(t.id);
-            const msgs = await getThreadMessages(user.uid, modelKey, t.id);
-            setMessages(msgs.map((m) => ({ role: m.role, content: m.content })));
-          } else {
-            setGuestThreadId(t.id);
-            setMessages(t.messages || []);
-          }
-        }}
-      >
-        {t.title || "Chat"}
-      </button>
+                    <p className="text-sm opacity-80 mb-3">Recents</p>
+                    <div className="h-[1px] bg-white/40 mb-4"></div>
+                    
+                    <div className="flex flex-col gap-2 overflow-y-auto">
+            {recentsToShow.map((t) => (
+              <div
+                key={t.id}
+                className="flex items-center justify-between bg-white/10 hover:bg-white/20 px-2 py-2 rounded"
+              >
+                {/* THREAD BUTTON */}
+                <button
+                  className="text-left text-xs flex-1"
+                  onClick={async () => {
+                    if (user && !isPublicAccess) {
+                      setThreadId(t.id);
+                      const msgs = await getThreadMessages(user.uid, modelKey, t.id);
+                      setMessages(msgs.map((m) => ({ role: m.role, content: m.content })));
+                    } else {
+                      setGuestThreadId(t.id);
+                      setMessages(t.messages || []);
+                    }
+                  }}
+                >
+                  {t.title || "Chat"}
+                </button>
 
-      {/* ❌ DELETE BUTTON */}
-      <button
-        onClick={() => handleDeleteRecent(t.id)}
-        className="text-red-300 hover:text-red-500 text-xs px-2"
-      >
-        ✕
-      </button>
-    </div>
-  ))}
-</div>
+                {/* ❌ DELETE BUTTON */}
+                <button
+                  onClick={() => handleDeleteRecent(t.id)}
+                  className="text-red-300 hover:text-red-500 text-xs px-2"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
 
 
           {/* USER INFO */}
@@ -1039,24 +1048,28 @@ const handleDeleteRecent = async (threadIdToDelete) => {
           }}
         >
           {/* ✅ Generate QR button inside chat area (added) */}
-          {/* ✅ Chat Top Bar (QR button) — prevents overlap */}
-          <div className="px-6 pt-3 flex justify-end">
-          <button
-          onClick={handleGenerateQR}
-          disabled={messages.length === 0}
-          className={`px-4 py-2 rounded-full shadow font-semibold text-xs ${
-            messages.length === 0
-            ? "bg-white/50 text-gray-700"
-            : "bg-white/90 text-black"
-          }`}
-          title={
-            messages.length === 0
-            ? "Start a conversation first"
-            : "Generate QR for this conversation"
-          }
-          >
-            Generate QR
+{/* ✅ Chat Top Bar (Buttons) — prevents overlap */}
+          <div className="px-6 pt-3 flex justify-end gap-2 relative z-20">
+            
+            {/* 🆕 NEW GRAY BUTTON */}
+            <button onClick={handleToggleMode} className="px-4 py-2 rounded-full shadow font-semibold text-xs bg-white/50 text-black hover:bg-[#d88c20] transition">💬 Chat Mode</button>            {/* 📱 GENERATE QR BUTTON */}
+            <button
+              onClick={handleGenerateQR}
+              disabled={messages.length === 0}
+              className={`px-4 py-2 rounded-full shadow font-semibold text-xs transition ${
+                messages.length === 0
+                ? "bg-white/50 text-gray-700 cursor-not-allowed"
+                : "bg-white/90 text-black hover:bg-white"
+              }`}
+              title={
+                messages.length === 0
+                ? "Start a conversation first"
+                : "Generate QR for this conversation"
+              }
+            >
+              Generate QR
             </button>
+            
           </div>
 
           {/* MESSAGES */}

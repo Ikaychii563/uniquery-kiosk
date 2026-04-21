@@ -2,39 +2,32 @@ import { useRouter } from "next/router";
 import dynamic from "next/dynamic";
 import { useRef } from "react";
 
-const VRMAvatar = dynamic(() => import("../components/VRMAvatar"), { ssr: false });
+// Swap to our optimized Flipbook component
+const FlipbookAvatar = dynamic(() => import("../components/FlipbookAvatar"), { ssr: false });
 
 export default function Home() {
   const router = useRouter();
   const avatarRef = useRef();
 
   const handlePublicModelClick = (model) => {
-    router.push(`/chat?model=${model}&public=true`);
+    // ✅ SWITCHED: Routes to character.js first instead of chat.js
+    router.push(`/character?model=${model}&public=true`);
   };
 
-  const handleGestureClick = (index) => {
-    if (!avatarRef.current) {
-      console.log("Avatar container not ready yet.");
-      return;
+  const handleGestureClick = (gestureName) => {
+    if (avatarRef.current && typeof avatarRef.current.switchGesture === "function") {
+      avatarRef.current.switchGesture(gestureName);
     }
-
-    if (typeof avatarRef.current.switchGesture !== "function") {
-      console.log("switchGesture not ready yet.");
-      return;
-    }
-
-    avatarRef.current.switchGesture(index);
   };
 
-  // ✅ UPDATED VRMA LIST
-  const vrmaGestures = [
-    { name: "Wave", path: "/VRMA/Waving.vrma" },
-    { name: "Arguing", path: "/VRMA/Arguing.vrma" },
-    { name: "Chicken Dance", path: "/VRMA/Chickendance.vrma" },
-    { name: "Macarena Dance", path: "/VRMA/Macarenadance.vrma" },
-    { name: "Nodding", path: "/VRMA/Nodding.vrma" },
-    { name: "Angry", path: "/VRMA/Angry.vrma" },
-    { name: "Shrugging", path: "/VRMA/Shrugging.vrma" },
+  // Matched exactly to the keys in FlipbookAvatar.js
+  const availableAnimations = [
+    { name: "Idle State", value: "Idle" },
+    { name: "Chicken Dance", value: "ChickenDance" },
+    { name: "Look Around", value: "LookAround" },
+    { name: "Look Around Alternative", value: "LookAround1" },
+    { name: "Macarena", value: "MacarenaDance" },
+    { name: "Replay Entrance", value: "Entrance" },
   ];
 
   return (
@@ -49,13 +42,13 @@ export default function Home() {
 
       {/* HEADER */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-black/30 text-white py-1.5 px-4 flex justify-between items-center shadow-sm">
-  <div className="flex items-center gap-2">
-    <img src="/tuplogo.png" alt="TUP Logo" className="h-7 w-7" />
-    <h1 className="text-xs md:text-sm font-bold">
-      TECHNOLOGICAL UNIVERSITY OF THE PHILIPPINES
-    </h1>
-  </div>
-</header>
+        <div className="flex items-center gap-2">
+          <img src="/tuplogo.png" alt="TUP Logo" className="h-7 w-7" />
+          <h1 className="text-xs md:text-sm font-bold">
+            TECHNOLOGICAL UNIVERSITY OF THE PHILIPPINES
+          </h1>
+        </div>
+      </header>
 
       {/* MAIN */}
       <main className="relative z-20 flex flex-col justify-start items-center h-full pt-[70px] px-2 md:px-6">
@@ -68,28 +61,24 @@ export default function Home() {
         <div className="flex flex-col md:flex-row justify-center items-stretch w-full h-[calc(100%-140px)] gap-4 md:gap-8">
 
           {/* LEFT COLUMN */}
-          <div className="relative flex flex-col justify-center items-center w-full md:w-1/2 h-full">
+          <div className="flex flex-col w-full md:w-1/2 h-[calc(100%-40px)] justify-between pb-6 pt-4">
 
-            {/* AVATAR */}
-            <div className="w-full h-full flex justify-center items-center">
-              <div className="w-full h-full max-h-[750px] max-w-[650px]">
-                <VRMAvatar
-                  customAvatarRef={avatarRef}
-                  vrmaGestures={vrmaGestures.map((g) => g.path)}
-                  defaultGestureIndex={0}
-                />
+            {/* AVATAR CONTAINER */}
+            <div className="w-full flex-1 flex justify-center items-end min-h-0">
+              <div className="w-full h-full max-h-[850px] max-w-[850px] flex justify-center items-end">
+                <FlipbookAvatar customAvatarRef={avatarRef} />
               </div>
             </div>
 
-            {/* DROPDOWN */}
-            <div className="absolute bottom-0.5 left-1">
+            {/* DROPDOWN CONTAINER */}
+            <div className="w-full shrink-0 flex justify-start px-4 md:px-8 mt-6">
               <select
-                onChange={(e) => handleGestureClick(Number(e.target.value))}
-                className="bg-[#faa029] text-black font-bold px-3 py-2 rounded-lg shadow-md text-sm"
+                onChange={(e) => handleGestureClick(e.target.value)}
+                className="bg-[#faa029] text-black font-bold px-3 py-2 rounded-lg shadow-md text-sm w-[180px] outline-none"
               >
-                {vrmaGestures.map((gesture, i) => (
-                  <option key={gesture.name} value={i}>
-                    {gesture.name}
+                {availableAnimations.map((anim) => (
+                  <option key={anim.value} value={anim.value}>
+                    {anim.name}
                   </option>
                 ))}
               </select>
@@ -111,25 +100,25 @@ export default function Home() {
             <div className="flex justify-center items-center gap-4 w-full">
 
               <button
-  onClick={() => handlePublicModelClick("nav")}
-  className="bg-[#aa3636] text-white font-bold text-lg px-6 md:px-10 py-3 md:py-4 rounded-3xl shadow-xl flex-1 max-w-[150px] flex flex-col justify-center items-center text-center"
->
-  Campus <br /> Navigation
-</button>
+                onClick={() => handlePublicModelClick("nav")}
+                className="bg-[#aa3636] text-white font-bold text-lg px-6 md:px-10 py-3 md:py-4 rounded-3xl shadow-xl flex-1 max-w-[150px] flex flex-col justify-center items-center text-center"
+              >
+                Campus <br /> Navigation
+              </button>
 
-<button
-  onClick={() => handlePublicModelClick("info")}
-  className="bg-[#aa3636] text-white font-bold text-lg px-6 md:px-10 py-3 md:py-4 rounded-3xl shadow-xl flex-1 max-w-[150px] flex flex-col justify-center items-center text-center"
->
-  General <br /> Information
-</button>
+              <button
+                onClick={() => handlePublicModelClick("info")}
+                className="bg-[#aa3636] text-white font-bold text-lg px-6 md:px-10 py-3 md:py-4 rounded-3xl shadow-xl flex-1 max-w-[150px] flex flex-col justify-center items-center text-center"
+              >
+                General <br /> Information
+              </button>
 
-<button
-  onClick={() => handlePublicModelClick("ece")}
-  className="bg-[#aa3636] text-white font-bold text-lg px-6 md:px-10 py-3 md:py-4 rounded-3xl shadow-xl flex-1 max-w-[150px] flex flex-col justify-center items-center text-center"
->
-  ECE <br /> Queries
-</button>
+              <button
+                onClick={() => handlePublicModelClick("ece")}
+                className="bg-[#aa3636] text-white font-bold text-lg px-6 md:px-10 py-3 md:py-4 rounded-3xl shadow-xl flex-1 max-w-[150px] flex flex-col justify-center items-center text-center"
+              >
+                ECE <br /> Queries
+              </button>
 
             </div>
           </div>

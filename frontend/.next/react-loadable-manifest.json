@@ -11,10 +11,10 @@
       "static/chunks/_pages-dir-browser_node_modules_next_dist_pages__error_js.js"
     ]
   },
-  "pages\\index.js -> ../components/VRMAvatar": {
-    "id": "pages\\index.js -> ../components/VRMAvatar",
+  "pages\\index.js -> ../components/FlipbookAvatar": {
+    "id": "pages\\index.js -> ../components/FlipbookAvatar",
     "files": [
-      "static/chunks/_pages-dir-browser_components_VRMAvatar_js.js"
+      "static/chunks/_pages-dir-browser_components_FlipbookAvatar_js.js"
     ]
   }
 }
