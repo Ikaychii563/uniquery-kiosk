@@ -164,6 +164,39 @@ const [guestThreadId, setGuestThreadId] = useState(null);
   const [shareOpen, setShareOpen] = useState(false);
 
 
+  const handleQuickQuestion = (question) => {
+  setInput(question);
+  setShowKeyboard(true);
+
+  // optional: auto-focus input
+  setTimeout(() => {
+    inputRef.current?.focus();
+  }, 50);
+};
+
+const faqData = {
+  nav: [
+    "How to get to COE building?",
+    "How to get to CIE building?",
+    "How to get to CAFA building?",
+    "How to get to COS building?",
+    "How to get to CLA building?",
+    "How to get to CIT building?",
+    "How to get to IRTC?",
+  ],
+  ece: [
+    "Who is the department head of ECE department?",
+    "What is ECE program?",
+    "Typical career paths for ECE graduate",
+  ],
+  info: [
+    "What is the admission procedure for freshmen?",
+    "Who is the current president of TUP-Manila?",
+    "What is admission procedure for graduate program?",
+  ],
+};
+
+
   const GUEST_KEY = `guest_threads_${modelKey}`;
   function loadGuestThreads() {
   try {
@@ -1257,6 +1290,29 @@ const handleDeleteRecent = async (threadIdToDelete) => {
               Send
             </button>
           </form>
+          {/* FAQ BAR (TRUE FIXED + CENTERED + NO SIDEBAR INTERFERENCE) */}
+<div
+  className="fixed left-0 right-0 z-40 flex justify-center px-4"
+  style={{
+    bottom: showKeyboard
+      ? `${footerHeight + keyboardHeight + inputBarHeight}px`
+      : `${footerHeight + inputBarHeight}px`,
+  }}
+>
+  {/* scroll container */}
+  <div className="flex gap-2 overflow-x-auto whitespace-nowrap no-scrollbar max-w-[95vw] px-2">
+    {(faqData[modelKey] || []).map((q, i) => (
+      <button
+        key={i}
+        type="button"
+        onClick={() => handleQuickQuestion(q)}
+        className="flex-shrink-0 px-3 py-1 rounded-full bg-[#f3b96d] hover:bg-white text-xs shadow border transition"
+      >
+        {q}
+      </button>
+    ))}
+  </div>
+</div>
         </div>
       </div>
     </div>

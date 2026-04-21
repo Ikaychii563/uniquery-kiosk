@@ -30,10 +30,10 @@ globalThis.__BUILD_MANIFEST = {
       "static/chunks/main.js",
       "static/chunks/pages/character.js"
     ],
-    "/login": [
+    "/chat": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/login.js"
+      "static/chunks/pages/chat.js"
     ]
   },
   "ampFirstPages": []
